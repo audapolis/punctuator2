@@ -4,7 +4,7 @@ from io import open
 from .data import EOS_TOKENS, PUNCTUATION_VOCABULARY
 
 
-def convert(input_text, out_f, with_newlines=False):
+def convert(input_text, out_f, with_newlines=False, titleize=True):
     """
     Translates punctuation tokens to normal punctuation.
     """
@@ -14,7 +14,7 @@ def convert(input_text, out_f, with_newlines=False):
         if token in PUNCTUATION_VOCABULARY:
             out_f.write(token[:1])
         else:
-            out_f.write(('' if first else ' ') + (token.title() if last_was_eos else token))
+            out_f.write(('' if first else ' ') + (token.title() if last_was_eos and titleize else token))
 
         last_was_eos = token in EOS_TOKENS
         if with_newlines and last_was_eos:

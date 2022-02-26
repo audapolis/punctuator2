@@ -218,7 +218,7 @@ class Punctuator:
         with open(fn, 'rb') as fin:
             return pickle.load(fin)
 
-    def punctuate(self, input_text, escape=True, heuristic_corrections=False):
+    def punctuate(self, input_text, escape=True, heuristic_corrections=True, titleize=True):
 
         text = [
             w for w in input_text.split() if w not in self.punctuation_vocabulary and w not in data.PUNCTUATION_MAPPING and not w.startswith(data.PAUSE_PREFIX)
@@ -236,7 +236,7 @@ class Punctuator:
         # Convert tokenize punctuation to normal punctuation.
         if escape:
             fout2 = StringIO()
-            convert(fout.getvalue(), fout2)
+            convert(fout.getvalue(), fout2, titleize=titleize)
 
         output_text = fout2.getvalue()
 
