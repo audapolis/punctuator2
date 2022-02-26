@@ -316,7 +316,12 @@ class GRU:
 
         npyl_path = zipfile.Path(model_path, f'{key}.npyl')
         if npyl_path.exists():
-            file = npyl_path.open('r')
+            # Python 3.9 needs 'rb', returns a TextIOWrapper otherwise.
+            # 'rb' is not supported by (some?) lower versions
+            try:
+                file = npyl_path.open('rb')
+            except ValueError:
+                file = npyl_path.open('r')
             value = []
             while file.peek():
                 value.append(np.load(file, allow_pickle=False))
