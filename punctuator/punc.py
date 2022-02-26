@@ -188,23 +188,18 @@ class Punctuator:
             p = T.matrix('p')
 
             logging.info("Loading model parameters...")
-            if isinstance(model_file, bytes):
-                net, _ = models.loads(model_file, 1, x, p)
-            else:
-                net, _ = models.load(model_file, 1, x, p)
+            net = models.GRU.load_zip(model_file, 1, x, p)
             logging.info("Building model...")
-            self.predict = theano.function(inputs=[x, p], outputs=net.y)
+            self.predict = aesara.function(inputs=[x, p], outputs=net.y)
 
         else:
 
             logging.info("Loading model parameters...")
-            if isinstance(model_file, bytes):
-                net, _ = models.loads(model_file, 1, x)
-            else:
-                net, _ = models.load(model_file, 1, x)
+            net = models.GRU.load_zip(model_file, 1, x)
             logging.info("Building model...")
-            self.predict = theano.function(inputs=[x], outputs=net.y)
+            self.predict = aesara.function(inputs=[x], outputs=net.y)
 
+        logging.info("built model")
         self.net = net
         self.word_vocabulary = net.x_vocabulary
         self.punctuation_vocabulary = net.y_vocabulary

@@ -7,6 +7,8 @@ import _pickle as cPickle
 import aesara
 import aesara.tensor as T
 import numpy as np
+import zipfile
+import json
 
 cpickle_options = {'encoding': 'latin-1'}
 
@@ -279,43 +281,102 @@ class GRU:
         with open(file_path, 'wb') as f:
             cPickle.dump(state, f)
 
+    def save_zip(self, file_path, gsums=None, learning_rate=None, validation_ppl_history=None, best_validation_ppl=None, epoch=None, random_state=None):
+        state = {
+            "type": self.__class__.__name__,
+            "n_hidden": self.n_hidden,
+            "x_vocabulary": self.x_vocabulary,
+            "y_vocabulary": self.y_vocabulary,
+            "stage1_model_file_name": self.stage1_model_file_name if hasattr(self, "stage1_model_file_name") else None,
+            "params": [p.get_value(borrow=True) for p in self.params],
+            "gsums": [s.get_value(borrow=True) for s in gsums] if gsums else None,
+            "learning_rate": learning_rate,
+            "validation_ppl_history": validation_ppl_history,
+            "epoch": epoch,
+            "random_state": random_state
+        }
 
-class GRUstage2(GRU):
+        with zipfile.ZipFile(file_path, "w") as model_zip:
+            for k,v in state.items():
+                if (isinstance(v, list)) and v and isinstance(v[0], np.ndarray):
+                    print("Dumping", k, "as a npyl")
+                    with model_zip.open(f"{k}.npyl", "w") as f:
+                        for x in v:
+                            np.save(f, x, allow_pickle=False)
+                else:
+                    with model_zip.open(f"{k}.json", "w") as f:
+                        f.write(json.dumps(v).encode())
 
-    def __init__(self, rng, x, minibatch_size, n_hidden, x_vocabulary, y_vocabulary, stage1_model_file_name, p=None):
-        # pylint: disable=super-init-not-called
 
-        y_vocabulary_size = len(y_vocabulary)
+    @classmethod
+    def _load_var_from_zip(cls, model_path, key):
+        json_path = zipfile.Path(model_path, f'{key}.json')
+        if json_path.exists():
+            return json.load(json_path.open('r'))
 
-        self.stage1_model_file_name = stage1_model_file_name
-        self.stage1, _ = load(stage1_model_file_name, minibatch_size, x)
+        npyl_path = zipfile.Path(model_path, f'{key}.npyl')
+        if npyl_path.exists():
+            file = npyl_path.open('r')
+            value = []
+            while file.peek():
+                value.append(np.load(file, allow_pickle=False))
+            return value
 
-        self.n_hidden = n_hidden
-        self.x_vocabulary = x_vocabulary
-        self.y_vocabulary = y_vocabulary
+        raise ValueError(f"{key} not found in model zip")
 
-        # output model
-        self.GRU = GRULayer(rng=rng, n_in=self.stage1.n_hidden + 1, n_out=n_hidden, minibatch_size=minibatch_size)
-        self.Wy = weights_const(n_hidden, y_vocabulary_size, 'Wy', 0)
-        self.by = weights_const(1, y_vocabulary_size, 'by', 0)
+    @classmethod
+    def load_zip(cls, model_path, minibatch_size, x, p=None):
+        # with zipfile.ZipFile(file_path, "r") as model_zip:
+        type_str = cls._load_var_from_zip(model_path, "type")
+        assert type_str == cls.__name__
 
-        self.params = [self.Wy, self.by]
-        self.params += self.GRU.params
+        rng = np.random
+        random_state = cls._load_var_from_zip(model_path, "random_state")
+        if random_state:
+            rng.set_state(random_state)
 
-        def recurrence(x_t, p_t, h_tm1, Wy, by):
+        net = cls(
+            rng=rng,
+            x=x,
+            minibatch_size=minibatch_size,
+            n_hidden=cls._load_var_from_zip(model_path, "n_hidden"),
+            x_vocabulary=cls._load_var_from_zip(model_path, "x_vocabulary"),
+            y_vocabulary=cls._load_var_from_zip(model_path, "y_vocabulary"),
+            p=p
+        )
+        state_params = cls._load_var_from_zip(model_path, "params")
+        for net_param, state_param in zip(net.params, state_params):
+            net_param.set_value(state_param, borrow=True)
+        
 
-            h_t = self.GRU.step(x_t=T.concatenate((x_t, p_t.dimshuffle((0, 'x'))), axis=1), h_tm1=h_tm1)
 
-            z = T.dot(h_t, Wy) + by
-            y_t = T.nnet.softmax(z)
+        return net
 
-            return [h_t, y_t]
+            
 
-        [_, self.y
-         ], _ = theano.scan(fn=recurrence, sequences=[self.stage1.last_hidden_states, p], non_sequences=[self.Wy, self.by], outputs_info=[self.GRU.h0, None])
+    # state = cPickle.loads(file_bytes, **cpickle_options)
 
-        logging.info("Number of parameters is %d", sum(np.prod(p.shape.eval()) for p in self.params))
-        logging.info("Number of parameters with stage1 params is %d", sum(np.prod(p.shape.eval()) for p in self.params + self.stage1.params))
+    # logging.info('Looking up %s.', state["type"])
+    # # Model = getattr(models, state["type"])
+    # Model = globals()[state["type"]]
 
-        self.L1 = sum(abs(p).sum() for p in self.params)
-        self.L2_sqr = sum((p**2).sum() for p in self.params)
+    # rng = np.random
+    # rng.set_state(state["random_state"])
+
+    # net = Model(
+    #     rng=rng,
+    #     x=x,
+    #     minibatch_size=minibatch_size,
+    #     n_hidden=state["n_hidden"],
+    #     x_vocabulary=state["x_vocabulary"],
+    #     y_vocabulary=state["y_vocabulary"],
+    #     stage1_model_file_name=state.get("stage1_model_file_name", None),
+    #     p=p
+    # )
+
+    # for net_param, state_param in zip(net.params, state["params"]):
+    #     net_param.set_value(state_param, borrow=True)
+
+    # gsums = [aesara.shared(gsum) for gsum in state["gsums"]] if state["gsums"] else None
+
+    # return net, (gsums, state["learning_rate"], state["validation_ppl_history"], state["epoch"], rng)
