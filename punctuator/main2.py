@@ -6,8 +6,8 @@ from collections import OrderedDict
 from time import time
 import os.path
 
-import theano
-import theano.tensor as T
+import aesara
+import aesara.tensor as T
 import numpy as np
 
 from punctuator import models
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         best_ppl = np.inf
         validation_ppl_history = []
 
-        gsums = [theano.shared(np.zeros_like(param.get_value(borrow=True))) for param in net.params]
+        gsums = [aesara.shared(np.zeros_like(param.get_value(borrow=True))) for param in net.params]
 
     cost = net.cost(y) + L2_REG * net.L2_sqr
 
@@ -109,9 +109,9 @@ if __name__ == "__main__":
         updates[gsum] = gsum + (gparam**2)
         updates[param] = param - lr * (gparam / (T.sqrt(updates[gsum] + 1e-6)))
 
-    train_model = theano.function(inputs=[x, p, y, lr], outputs=cost, updates=updates)
+    train_model = aesara.function(inputs=[x, p, y, lr], outputs=cost, updates=updates)
 
-    validate_model = theano.function(inputs=[x, p, y], outputs=net.cost(y))
+    validate_model = aesara.function(inputs=[x, p, y], outputs=net.cost(y))
 
     print("Training...")
     for epoch in range(starting_epoch, MAX_EPOCHS):

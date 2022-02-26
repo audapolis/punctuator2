@@ -7,12 +7,12 @@ from nltk.tokenize import word_tokenize
 import models
 import data
 
-import theano
+import aesara
 import sys
 import re
 from io import open
 
-import theano.tensor as T
+import aesara.tensor as T
 import numpy as np
 
 # pylint: disable=redefined-outer-name
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     net, _ = models.load(model_file, 1, x)
 
     print("Building model...")
-    predict = theano.function(inputs=[x], outputs=net.y)
+    predict = aesara.function(inputs=[x], outputs=net.y)
     word_vocabulary = net.x_vocabulary
     punctuation_vocabulary = net.y_vocabulary
     reverse_word_vocabulary = {v: k for k, v in net.x_vocabulary.items()}

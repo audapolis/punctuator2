@@ -9,8 +9,8 @@ import logging
 import pickle
 from io import open, StringIO
 
-import theano
-import theano.tensor as T
+import aesara
+import aesara.tensor as T
 import numpy as np
 
 import gdown
@@ -70,7 +70,7 @@ def restore_with_pauses(output_file, text, pauses, word_vocabulary, reverse_punc
 
             converted_subsequence = [word_vocabulary.get(w, word_vocabulary[data.UNK]) for w in subsequence]
 
-            y = predict_function(to_array(converted_subsequence), to_array(subsequence_pauses, dtype=theano.config.floatX))
+            y = predict_function(to_array(converted_subsequence), to_array(subsequence_pauses, dtype=aesara.config.floatX))
 
             f_out.write(subsequence[0])
 

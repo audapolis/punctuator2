@@ -11,8 +11,8 @@ import os.path
 from collections import OrderedDict
 from time import time
 
-import theano
-import theano.tensor as T
+import aesara
+import aesara.tensor as T
 import numpy as np
 
 import models
@@ -56,7 +56,7 @@ def get_minibatch(file_name, batch_size, shuffle, with_pauses=False):
             X = np.array(X_batch, dtype=np.int32).T
             Y = np.array(Y_batch, dtype=np.int32).T
             if with_pauses:
-                P = np.array(P_batch, dtype=theano.config.floatX).T
+                P = np.array(P_batch, dtype=aesara.config.floatX).T
 
             if with_pauses:
                 yield X, Y, P
@@ -133,7 +133,7 @@ if __name__ == "__main__":
         best_ppl = np.inf
         validation_ppl_history = []
 
-        gsums = [theano.shared(np.zeros_like(param.get_value(borrow=True))) for param in net.params]
+        gsums = [aesara.shared(np.zeros_like(param.get_value(borrow=True))) for param in net.params]
 
     cost = net.cost(y) + L2_REG * net.L2_sqr
 
@@ -149,9 +149,9 @@ if __name__ == "__main__":
         updates[gsum] = gsum + (gparam**2)
         updates[param] = param - lr * (gparam / (T.sqrt(updates[gsum] + 1e-6)))
 
-    train_model = theano.function(inputs=[x, y, lr], outputs=cost, updates=updates)
+    train_model = aesara.function(inputs=[x, y, lr], outputs=cost, updates=updates)
 
-    validate_model = theano.function(inputs=[x, y], outputs=net.cost(y))
+    validate_model = aesara.function(inputs=[x, y], outputs=net.cost(y))
 
     print("Training...")
     for epoch in range(starting_epoch, MAX_EPOCHS):

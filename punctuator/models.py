@@ -4,8 +4,8 @@ import os
 import logging
 import _pickle as cPickle
 
-import theano
-import theano.tensor as T
+import aesara
+import aesara.tensor as T
 import numpy as np
 
 cpickle_options = {'encoding': 'latin-1'}
@@ -35,14 +35,14 @@ def _slice(tensor, size, i):
 
 
 def weights_const(i, o, name, const, keepdims=False):
-    W_values = np.ones(_get_shape(i, o, keepdims)).astype(theano.config.floatX) * const
-    return theano.shared(value=W_values, name=name, borrow=True)
+    W_values = np.ones(_get_shape(i, o, keepdims)).astype(aesara.config.floatX) * const
+    return aesara.shared(value=W_values, name=name, borrow=True)
 
 
 def weights_identity(i, o, name, const, keepdims=False):
     #"A Simple Way to Initialize Recurrent Networks of Rectified Linear Units" (2015) (http://arxiv.org/abs/1504.00941)
-    W_values = np.eye(*_get_shape(i, o, keepdims)).astype(theano.config.floatX) * const
-    return theano.shared(value=W_values, name=name, borrow=True)
+    W_values = np.eye(*_get_shape(i, o, keepdims)).astype(aesara.config.floatX) * const
+    return aesara.shared(value=W_values, name=name, borrow=True)
 
 
 def weights_Glorot(i, o, name, rng, is_logistic_sigmoid=False, keepdims=False):
@@ -50,8 +50,8 @@ def weights_Glorot(i, o, name, rng, is_logistic_sigmoid=False, keepdims=False):
     d = np.sqrt(6. / (i + o))
     if is_logistic_sigmoid:
         d *= 4.
-    W_values = rng.uniform(low=-d, high=d, size=_get_shape(i, o, keepdims)).astype(theano.config.floatX)
-    return theano.shared(value=W_values, name=name, borrow=True)
+    W_values = rng.uniform(low=-d, high=d, size=_get_shape(i, o, keepdims)).astype(aesara.config.floatX)
+    return aesara.shared(value=W_values, name=name, borrow=True)
 
 
 def load(file_path, minibatch_size, x, p=None):
@@ -80,7 +80,7 @@ def load(file_path, minibatch_size, x, p=None):
     for net_param, state_param in zip(net.params, state["params"]):
         net_param.set_value(state_param, borrow=True)
 
-    gsums = [theano.shared(gsum) for gsum in state["gsums"]] if state["gsums"] else None
+    gsums = [aesara.shared(gsum) for gsum in state["gsums"]] if state["gsums"] else None
 
     return net, (gsums, state["learning_rate"], state["validation_ppl_history"], state["epoch"], rng)
 
@@ -110,7 +110,7 @@ def loads(file_bytes, minibatch_size, x, p=None):
     for net_param, state_param in zip(net.params, state["params"]):
         net_param.set_value(state_param, borrow=True)
 
-    gsums = [theano.shared(gsum) for gsum in state["gsums"]] if state["gsums"] else None
+    gsums = [aesara.shared(gsum) for gsum in state["gsums"]] if state["gsums"] else None
 
     return net, (gsums, state["learning_rate"], state["validation_ppl_history"], state["epoch"], rng)
 
@@ -125,7 +125,7 @@ class GRULayer:
         self.n_out = n_out
 
         # Initial hidden state
-        self.h0 = theano.shared(value=np.zeros((minibatch_size, n_out)).astype(theano.config.floatX), name='h0', borrow=True)
+        self.h0 = aesara.shared(value=np.zeros((minibatch_size, n_out)).astype(aesara.config.floatX), name='h0', borrow=True)
 
         # Gate parameters:
         self.W_x = weights_Glorot(n_in, n_out * 2, 'W_x', rng)
@@ -140,7 +140,7 @@ class GRULayer:
 
     def step(self, x_t, h_tm1):
 
-        rz = T.nnet.sigmoid(T.dot(x_t, self.W_x) + T.dot(h_tm1, self.W_h) + self.b)
+        rz = T.nnet.basic.sigmoid(T.dot(x_t, self.W_x) + T.dot(h_tm1, self.W_h) + self.b)
         r = _slice(rz, self.n_out, 0)
         z = _slice(rz, self.n_out, 1)
 
@@ -174,8 +174,8 @@ class GRU:
             We.append([0.1] * n_emb) # END
             We.append([0.0] * n_emb) # UNK - both quite arbitrary initializations
 
-            We = np.array(We).astype(theano.config.floatX)
-            self.We = theano.shared(value=We, name="We", borrow=True)
+            We = np.array(We).astype(aesara.config.floatX)
+            self.We = aesara.shared(value=We, name="We", borrow=True)
         else:
             n_emb = n_hidden
             self.We = weights_Glorot(x_vocabulary_size, n_emb, 'We', rng) # Share embeddings between forward and backward model
@@ -224,17 +224,17 @@ class GRU:
 
             # Late fusion
             lfc = T.dot(weighted_context, Wf_c) # late fused context
-            fw = T.nnet.sigmoid(T.dot(lfc, Wf_f) + T.dot(h_t, Wf_h) + bf) # fusion weights
+            fw = T.nnet.basic.sigmoid(T.dot(lfc, Wf_f) + T.dot(h_t, Wf_h) + bf) # fusion weights
             hf_t = lfc * fw + h_t # weighted fused context + hidden state
 
             z = T.dot(hf_t, Wy) + by
-            y_t = T.nnet.softmax(z)
+            y_t = T.nnet.softmax(z, axis=-1)
 
             return [h_t, hf_t, y_t, alphas]
 
         x_emb = self.We[x.flatten()].reshape((x.shape[0], minibatch_size, n_emb))
 
-        [h_f_t, h_b_t], _ = theano.scan(
+        [h_f_t, h_b_t], _ = aesara.scan(
             fn=input_recurrence,
             sequences=[x_emb, x_emb[::-1]], # forward and backward sequences
             outputs_info=[self.GRU_f.h0, self.GRU_b.h0]
@@ -244,7 +244,7 @@ class GRU:
         context = T.concatenate([h_f_t, h_b_t[::-1]], axis=2)
         projected_context = T.dot(context, self.Wa_c) + self.ba
 
-        [_, self.last_hidden_states, self.y, self.alphas], _ = theano.scan(
+        [_, self.last_hidden_states, self.y, self.alphas], _ = aesara.scan(
             fn=output_recurrence,
             sequences=[context[1:]], # ignore the 1st word in context, because there's no punctuation before that
             non_sequences=[self.Wa_h, self.Wa_y, self.Wf_h, self.Wf_c, self.Wf_f, self.bf, self.Wy, self.by, context, projected_context],
