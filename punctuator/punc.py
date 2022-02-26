@@ -218,7 +218,7 @@ class Punctuator:
         with open(fn, 'rb') as fin:
             return pickle.load(fin)
 
-    def punctuate(self, input_text, escape=True):
+    def punctuate(self, input_text, escape=True, heuristic_corrections=False):
 
         text = [
             w for w in input_text.split() if w not in self.punctuation_vocabulary and w not in data.PUNCTUATION_MAPPING and not w.startswith(data.PAUSE_PREFIX)
@@ -243,13 +243,14 @@ class Punctuator:
         if output_text and not output_text.endswith('.'):
             output_text += '.'
 
-        # Correct "'s" capitalization.
-        output_text = re.sub(r"'[a-zA-Z]+\b", lambda m: m.group(0).lower(), output_text)
+        if heuristic_corrections:
+            # Correct "'s" capitalization.
+            output_text = re.sub(r"'[a-zA-Z]+\b", lambda m: m.group(0).lower(), output_text)
 
-        # Correct I capitalizations.
-        output_text = re.sub(r"\bi'm\b", "I'm", output_text)
-        output_text = re.sub(r"\bi've\b", "I've", output_text)
-        output_text = re.sub(r"\bi\b", "I", output_text)
+            # Correct I capitalizations.
+            output_text = re.sub(r"\bi'm\b", "I'm", output_text)
+            output_text = re.sub(r"\bi've\b", "I've", output_text)
+            output_text = re.sub(r"\bi\b", "I", output_text)
 
         return output_text
 
