@@ -19,13 +19,14 @@ from . import models
 from . import data
 from .convert_to_readable import convert
 
-PUNCTUATOR_DATA_DIR = os.path.expanduser(os.environ.get('PUNCTUATOR_DATA_DIR', '~/.punctuator'))
+aesara.config.cxx = ""
+PUNCTUATOR_DATA_DIR = os.path.expanduser(os.environ.get("PUNCTUATOR_DATA_DIR", "~/.punctuator"))
 
 MAX_SUBSEQUENCE_LEN = 200
 
 # pylint: disable=redefined-outer-name
 
-DEMO_DATA_GID = '0B7BsN5f2F1fZd1Q0aXlrUDhDbnM' # Demo-Europarl-EN.pcl
+DEMO_DATA_GID = "0B7BsN5f2F1fZd1Q0aXlrUDhDbnM" # Demo-Europarl-EN.pcl
 
 
 def download_model(gid=DEMO_DATA_GID):
@@ -33,8 +34,8 @@ def download_model(gid=DEMO_DATA_GID):
     try:
         os.makedirs(PUNCTUATOR_DATA_DIR, exist_ok=True)
         os.chdir(PUNCTUATOR_DATA_DIR)
-        logging.info('Downloading %s...', gid)
-        fn = gdown.download(url=f'https://drive.google.com/uc?id={gid}', output=None, quiet=False)
+        logging.info("Downloading %s...", gid)
+        fn = gdown.download(url=f"https://drive.google.com/uc?id={gid}", output=None, quiet=False)
         return os.path.join(PUNCTUATOR_DATA_DIR, fn)
     finally:
         os.chdir(_cwd)
@@ -51,10 +52,17 @@ def convert_punctuation_to_readable(punct_token):
     return punct_token[0]
 
 
-def restore_with_pauses(output_file, text, pauses, word_vocabulary, reverse_punctuation_vocabulary, predict_function):
+def restore_with_pauses(
+    output_file,
+    text,
+    pauses,
+    word_vocabulary,
+    reverse_punctuation_vocabulary,
+    predict_function,
+):
     i = 0
     if isinstance(output_file, str):
-        f_out = open(output_file, 'w', encoding='utf-8')
+        f_out = open(output_file, "w", encoding="utf-8")
         f_callback = f_out.close
     else:
         f_out = output_file
@@ -70,7 +78,10 @@ def restore_with_pauses(output_file, text, pauses, word_vocabulary, reverse_punc
 
             converted_subsequence = [word_vocabulary.get(w, word_vocabulary[data.UNK]) for w in subsequence]
 
-            y = predict_function(to_array(converted_subsequence), to_array(subsequence_pauses, dtype=aesara.config.floatX))
+            y = predict_function(
+                to_array(converted_subsequence),
+                to_array(subsequence_pauses, dtype=aesara.config.floatX),
+            )
 
             f_out.write(subsequence[0])
 
@@ -110,7 +121,7 @@ def restore_with_pauses(output_file, text, pauses, word_vocabulary, reverse_punc
 def restore(output_file, text, word_vocabulary, reverse_punctuation_vocabulary, predict_function):
     i = 0
     if isinstance(output_file, str):
-        f_out = open(output_file, 'w', encoding='utf-8')
+        f_out = open(output_file, "w", encoding="utf-8")
         f_callback = f_out.close
     else:
         f_out = output_file
@@ -176,16 +187,16 @@ class Punctuator:
     def __init__(self, model_file, use_pauses=False):
 
         model_file = self.model_exists(model_file)
-        assert model_file, 'Model %s does not exist.' % model_file
+        assert model_file, "Model %s does not exist." % model_file
 
         self.model_file = model_file
         self.use_pauses = use_pauses
 
-        x = T.imatrix('x')
+        x = T.imatrix("x")
 
         if use_pauses:
 
-            p = T.matrix('p')
+            p = T.matrix("p")
 
             logging.info("Loading model parameters...")
             net = models.GRU.load_zip(model_file, 1, x, p)
@@ -209,13 +220,13 @@ class Punctuator:
 
     def save(self, fn):
         assert isinstance(fn, str)
-        with open(fn, 'wb') as fout:
+        with open(fn, "wb") as fout:
             pickle.dump(self, fout)
 
     @classmethod
     def load(cls, fn):
         assert isinstance(fn, str)
-        with open(fn, 'rb') as fin:
+        with open(fn, "rb") as fin:
             return pickle.load(fin)
 
     def punctuate(self, input_text, escape=True, heuristic_corrections=True, titleize=True):
@@ -229,9 +240,22 @@ class Punctuator:
         if self.use_pauses:
             if not pauses:
                 pauses = [0.0 for _ in range(len(text) - 1)]
-            restore_with_pauses(fout, text, pauses, self.word_vocabulary, self.reverse_punctuation_vocabulary, self.predict)
+            restore_with_pauses(
+                fout,
+                text,
+                pauses,
+                self.word_vocabulary,
+                self.reverse_punctuation_vocabulary,
+                self.predict,
+            )
         else:
-            restore(fout, text, self.word_vocabulary, self.reverse_punctuation_vocabulary, self.predict)
+            restore(
+                fout,
+                text,
+                self.word_vocabulary,
+                self.reverse_punctuation_vocabulary,
+                self.predict,
+            )
 
         # Convert tokenize punctuation to normal punctuation.
         if escape:
@@ -240,8 +264,8 @@ class Punctuator:
 
         output_text = fout2.getvalue()
 
-        if output_text and not output_text.endswith('.'):
-            output_text += '.'
+        if output_text and not output_text.endswith("."):
+            output_text += "."
 
         if heuristic_corrections:
             # Correct "'s" capitalization.
@@ -261,16 +285,16 @@ def command_line_runner():
         model_file = sys.argv[1]
     else:
         sys.exit("Model file path argument missing")
-    if model_file[0] not in ('.', '..', '/'):
+    if model_file[0] not in (".", "..", "/"):
         model_file = os.path.join(PUNCTUATOR_DATA_DIR, model_file)
-    assert os.path.isfile(model_file), 'Specified model file does not exist: %s' % model_file
+    assert os.path.isfile(model_file), ("Specified model file does not exist: %s" % model_file)
 
     if len(sys.argv) > 2:
         output_file = sys.argv[2]
     else:
         sys.exit("Output file path argument missing")
 
-    input_text = open(sys.stdin.fileno(), 'r', encoding='utf-8').read().strip()
+    input_text = open(sys.stdin.fileno(), "r", encoding="utf-8").read().strip()
     if not input_text:
         sys.exit("Input text from stdin missing.")
 
@@ -278,9 +302,9 @@ def command_line_runner():
 
     p = Punctuator(model_file, use_pauses)
     output_text = p.punctuate(input_text)
-    with open(output_file, 'w', encoding='utf-8') as fout:
+    with open(output_file, "w", encoding="utf-8") as fout:
         fout.write(output_text)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     command_line_runner()
