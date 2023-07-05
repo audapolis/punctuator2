@@ -1,4 +1,4 @@
 nltk>=3.4.5
 numpy>=1.17.2
-aesara @ git+https://github.com/audapolis/aesara.git@641902379ffa27d08d8fadd6443b9b1c539caef0#egg=aesara
+aesara @ git+https://github.com/bugbakery/aesara.git@641902379ffa27d08d8fadd6443b9b1c539caef0#egg=aesara
 gdown>=3.8.3
